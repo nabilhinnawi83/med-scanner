@@ -16,20 +16,30 @@ DB_CONFIG = {
 
 st.set_page_config(page_title="Siri Med Scanner", page_icon="💊", layout="centered")
 
-# --- MOBILE VOICE ENGINE ---
+# --- MOBILE VOICE ENGINE (Updated for better Browser Compatibility) ---
 def text_to_speech_mobile(text):
     if text:
         # Clean text for JavaScript safety
         clean_text = text.replace("'", "").replace("\n", " ").replace("*", "").replace('"', '')
         components_code = f"""
             <script>
-            window.speechSynthesis.cancel(); 
-            var msg = new SpeechSynthesisUtterance("{clean_text}");
-            msg.lang = 'en-US';
-            msg.rate = 1.0;
-            setTimeout(function(){{
+            // 1. Create a function to handle the speech
+            function speak() {{
+                window.speechSynthesis.cancel(); 
+                var msg = new SpeechSynthesisUtterance("{clean_text}");
+                msg.lang = 'en-US';
+                msg.rate = 1.0;
+                
+                // 2. iOS requires a user gesture or a direct call 
                 window.speechSynthesis.speak(msg);
-            }}, 100);
+            }}
+
+            // 3. Execution with a fallback check
+            if (window.speechSynthesis) {{
+                setTimeout(speak, 200);
+            }} else {{
+                console.error("Speech Synthesis not supported");
+            }}
             </script>
         """
         st.components.v1.html(components_code, height=0)
@@ -134,5 +144,6 @@ else:
                     conn.close()
             except Exception as e:
                 st.error(f"System Error: {e}")
+
 
 
