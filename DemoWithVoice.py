@@ -23,7 +23,7 @@ def text_to_speech_mobile(text):
         components_code = f"""
             <script>
             window.speechSynthesis.cancel(); 
-            var msg = new SynthesisUtterance("{clean_text}");
+            var msg = new SpeechSynthesisUtterance("{clean_text}");
             msg.lang = 'en-US';
             msg.rate = 1.0;
             setTimeout(function(){{
@@ -52,8 +52,8 @@ else:
         img_bytes = img_file.getvalue()
         img_b64 = base64.b64encode(img_bytes).decode("utf-8")
 
-        with st.spinner("🧠 Siri is analyzing..."):
-            # STEP 1: Strict Quality Gateway
+        with st.spinner("🧠 Siri is analyzing image quality..."):
+            # STEP 1: Strict Quality Gateway with BLURR and INCOMPLETE checks
             gate_prompt = """
             ACT AS A STRICT MEDICINE SAFETY SCANNER. 
             Analyze the image for the medicine name.
@@ -61,7 +61,7 @@ else:
             2. If quality is 'INCOMPLETE', set siri_message='The name is cut off. Please show me the full label so I can be sure'.
             3. If name is blurry, set quality='BLURR'
             4. If quality is 'BLURR', set siri_message='The image is blurry. Please take another pic so I can be sure'.
-            Return ONLY JSON: {"quality": "GOOD/INCOMPLETE", "medicine_name": "Name", "siri_message": "..."}
+            Return ONLY JSON: {"quality": "GOOD/INCOMPLETE/BLURR", "medicine_name": "Name", "siri_message": "..."}
             """
             
             gate_payload = {
@@ -80,14 +80,14 @@ else:
                 res = requests.post(NIM_URL, json=gate_payload).json()
                 data = json.loads(res['choices'][0]['message']['content'])
                 
-                # Check Quality First
-                if data.get('quality') != "GOOD":
-                    error_msg = data.get('siri_message', "I can't see the label clearly.")
-                    st.error(error_msg)
+                # Check Quality Gateway Results
+                if data.get('quality') in ["INCOMPLETE", "BLURR"]:
+                    error_msg = data.get('siri_message', "I cannot read the label clearly.")
+                    st.error(f"❌ {error_msg}")
                     text_to_speech_mobile(error_msg)
-                else:
+                elif data.get('quality') == "GOOD":
                     med_name = data.get('medicine_name')
-                    st.success(f"Verified: {med_name}")
+                    st.success(f"✅ Verified: {med_name}")
 
                     # STEP 2: Oracle Vector Search
                     conn = oracledb.connect(user=DB_CONFIG["user"], password=DB_CONFIG["password"], dsn=DB_CONFIG["dsn"])
@@ -114,11 +114,12 @@ else:
                             }).json()
                             
                             siri_output = sum_res['choices'][0]['message']['content'].strip()
-                            st.success(f"**Siri:** {siri_output}")
+                            st.info(f"📣 {siri_output}")
                             text_to_speech_mobile(siri_output)
                         else:
-                            st.warning("Not found in database.")
+                            st.warning("Medicine not found in the registry.")
                     conn.close()
+                else:
+                    st.warning("Quality check returned an unexpected status.")
             except Exception as e:
-                st.error(f"Error: {e}")
-
+                st.error(f"System Error: {e}")
