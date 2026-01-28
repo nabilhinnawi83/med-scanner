@@ -19,12 +19,11 @@ st.set_page_config(page_title="Siri Med Scanner", page_icon="💊", layout="cent
 # --- MOBILE VOICE ENGINE ---
 def text_to_speech_mobile(text):
     if text:
-        # Clean text for JS safety and smooth reading
         clean_text = text.replace("'", "").replace("\n", " ").replace("*", "").replace('"', '')
         components_code = f"""
             <script>
             window.speechSynthesis.cancel(); 
-            var msg = new SpeechSynthesisUtterance("{clean_text}");
+            var msg = new SynthesisUtterance("{clean_text}");
             msg.lang = 'en-US';
             msg.rate = 1.0;
             setTimeout(function(){{
@@ -54,13 +53,21 @@ else:
         img_b64 = base64.b64encode(img_bytes).decode("utf-8")
 
         with st.spinner("🧠 Siri is analyzing..."):
-            # STEP 1: Vision Gate (Nemotron Vision)
+            # STEP 1: Strict Quality Gateway
+            gate_prompt = """
+            ACT AS A STRICT MEDICINE SAFETY SCANNER. 
+            Analyze the image for the medicine name.
+            1. If name is cut off or hidden, set quality='INCOMPLETE'.
+            2. If quality is 'INCOMPLETE', set siri_message='The name is cut off. Please show me the full label so I can be sure'.
+            Return ONLY JSON: {"quality": "GOOD/INCOMPLETE", "medicine_name": "Name", "siri_message": "..."}
+            """
+            
             gate_payload = {
                 "model": "nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
                 "messages": [{
                     "role": "user", 
                     "content": [
-                        {"type": "text", "text": 'Identify medicine. Return ONLY JSON: {"quality": "GOOD/INCOMPLETE", "medicine_name": "Name"}'}, 
+                        {"type": "text", "text": gate_prompt}, 
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}}
                     ]
                 }],
@@ -70,10 +77,17 @@ else:
             try:
                 res = requests.post(NIM_URL, json=gate_payload).json()
                 data = json.loads(res['choices'][0]['message']['content'])
-                med_name = data.get('medicine_name')
+                
+                # Check Quality First
+                if data.get('quality') != "GOOD":
+                    error_msg = data.get('siri_message', "I can't see the label clearly.")
+                    st.error(error_msg)
+                    text_to_speech_mobile(error_msg)
+                else:
+                    med_name = data.get('medicine_name')
+                    st.success(f"Verified: {med_name}")
 
-                if data.get('quality') == "GOOD":
-                    # STEP 2: Oracle Vector Search (RAG)
+                    # STEP 2: Oracle Vector Search
                     conn = oracledb.connect(user=DB_CONFIG["user"], password=DB_CONFIG["password"], dsn=DB_CONFIG["dsn"])
                     with conn.cursor() as cursor:
                         sql = "SELECT LEAF_TEXT FROM MEDICINE_LEAFLETS ORDER BY VECTOR_DISTANCE(LEAF_VECTOR, VECTOR_EMBEDDING(MED_EMBED_MODEL USING :name AS DATA), COSINE) FETCH FIRST 1 ROWS ONLY"
@@ -83,7 +97,7 @@ else:
                         if row:
                             leaflet_text = row[0].read() if hasattr(row[0], 'read') else row[0]
                             
-                            # STEP 3: STRICT 1-SENTENCE OUTPUT PROMPT
+                            # STEP 3: Strict 3-Sentence Output
                             summary_prompt = f"""
                             Based on this text: {leaflet_text[:2000]}
                             Provide information for {med_name} in exactly three short sentences.
@@ -97,15 +111,11 @@ else:
                                 "messages": [{"role": "user", "content": summary_prompt}]
                             }).json()
                             
-                            siri_output = sum_res['choices'][0]['message']['content']
-                            
-                            # Clean up potential LLM noise (like 'Output:')
-                            siri_output = siri_output.replace("Output:", "").strip()
-                            
+                            siri_output = sum_res['choices'][0]['message']['content'].strip()
                             st.success(f"**Siri:** {siri_output}")
                             text_to_speech_mobile(siri_output)
                         else:
-                            st.warning("Not found in registry.")
+                            st.warning("Not found in database.")
                     conn.close()
             except Exception as e:
                 st.error(f"Error: {e}")
