@@ -63,7 +63,7 @@ else:
             Analyze the image for the medicine name.
             CRITICAL RULES:
             1. If the text is tilted, blurry, or partially hidden, set quality='INCOMPLETE'.
-            2. If you are not 100% sure of every single letter in the name, set quality='INCOMPLETE'.
+            2. If you are not 90% sure of every single letter in the name, set quality='INCOMPLETE'.
             3. If quality is 'INCOMPLETE', set siri_message='The name is cut off or unclear. Please take another picture so I can be sure'.
             Return ONLY JSON: {"quality": "GOOD/INCOMPLETE", "medicine_name": "Name", "siri_message": "..."}
             """
@@ -131,6 +131,7 @@ else:
                     conn.close()
             except Exception as e:
                 st.error(f"System Error: {e}")
+
 
 
 
