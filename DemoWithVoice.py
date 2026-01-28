@@ -52,18 +52,16 @@ else:
         img_bytes = img_file.getvalue()
         img_b64 = base64.b64encode(img_bytes).decode("utf-8")
 
-      with st.spinner("🧠 Siri is analyzing image quality..."):
-            # STEP 1: Strict Quality Gateway
+        with st.spinner("🧠 Siri is analyzing image quality..."):
+            # STEP 1: Strict Quality Gateway (The Fix for Hallucinations)
             gate_prompt = """
-            ACT AS A CRITICAL AND STINGY MEDICINE SAFETY SCANNER. 
+            ACT AS A STRICT MEDICINE SAFETY SCANNER. 
             Analyze the image for the medicine name.
-            
-            CRITICAL RULES:
-            1. If the text is tilted, blurry, or partially hidden, set quality='INCOMPLETE'.
-            2. If you are not 100% sure of every single letter in the name, set quality='INCOMPLETE'.
-            3. If quality is 'INCOMPLETE', set siri_message='The name is cut off or unclear. Please show me the full label clearly so I can be sure'.
-            
-            Return ONLY JSON: {"quality": "GOOD/INCOMPLETE", "medicine_name": "Name", "siri_message": "..."}
+            1. If name is cut off, set quality='INCOMPLETE'.
+            2. If quality is 'INCOMPLETE', set siri_message='The name is cut off. Please show me the full label so I can be sure'.
+            3. If name is blurry, set quality='BLURR'
+            4. If quality is 'BLURR', set siri_message='The image is blurry. Please take another pic so I can be sure'.
+            Return ONLY JSON: {"quality": "GOOD/INCOMPLETE/BLURR", "medicine_name": "Name", "siri_message": "..."}
             """
             
             gate_payload = {
@@ -121,8 +119,5 @@ else:
                         else:
                             st.warning("Medicine not found in the registry.")
                     conn.close()
-                else:
-                    st.warning("Quality check returned an unexpected status.")
             except Exception as e:
                 st.error(f"System Error: {e}")
-
