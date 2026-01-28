@@ -3,6 +3,8 @@ import base64
 import requests
 import json
 import oracledb
+from gtts import gTTS  # New library for API-based voice
+import io
 
 # --- DATABASE CONFIG ---
 NIM_URL = "http://161.33.44.233/v1/chat/completions"
@@ -16,37 +18,28 @@ DB_CONFIG = {
 
 st.set_page_config(page_title="Siri Med Scanner", page_icon="💊", layout="centered")
 
-# --- MOBILE VOICE ENGINE (Updated for better Browser Compatibility) ---
-def text_to_speech_mobile(text):
+# --- API-BASED VOICE ENGINE ---
+def text_to_speech_api(text):
     if text:
-        # Clean text for JavaScript safety
-        clean_text = text.replace("'", "").replace("\n", " ").replace("*", "").replace('"', '')
-        components_code = f"""
-            <script>
-            // 1. Create a function to handle the speech
-            function speak() {{
-                window.speechSynthesis.cancel(); 
-                var msg = new SpeechSynthesisUtterance("{clean_text}");
-                msg.lang = 'en-US';
-                msg.rate = 1.0;
-                
-                // 2. iOS requires a user gesture or a direct call 
-                window.speechSynthesis.speak(msg);
-            }}
-
-            // 3. Execution with a fallback check
-            if (window.speechSynthesis) {{
-                setTimeout(speak, 200);
-            }} else {{
-                console.error("Speech Synthesis not supported");
-            }}
-            </script>
+        # Generate audio using Google's TTS API via the gTTS library
+        tts = gTTS(text=text, lang='en')
+        fp = io.BytesIO()
+        tts.write_to_fp(fp)
+        fp.seek(0)
+        
+        # Convert to base64 so it can be embedded in HTML
+        audio_b64 = base64.b64encode(fp.read()).decode()
+        audio_html = f"""
+            <audio autoplay="true" style="display:none;">
+                <source src="data:audio/mp3;base64,{audio_b64}" type="audio/mp3">
+            </audio>
         """
-        st.components.v1.html(components_code, height=0)
+        st.markdown(audio_html, unsafe_allow_html=True)
 
 # --- UI ---
 st.title("📱 Siri Medicine Scanner")
 
+# Start Siri session
 if "siri_unlocked" not in st.session_state:
     st.session_state.siri_unlocked = False
 
@@ -54,7 +47,7 @@ if not st.session_state.siri_unlocked:
     st.info("Tap below to enable Siri's voice.")
     if st.button("🚀 Start Siri"):
         st.session_state.siri_unlocked = True
-        text_to_speech_mobile("Siri is active.")
+        text_to_speech_api("Siri is active and connected to the registry.")
         st.rerun()
 else:
     img_file = st.camera_input("Scan the label")
@@ -64,7 +57,7 @@ else:
         img_b64 = base64.b64encode(img_bytes).decode("utf-8")
 
         with st.spinner("🧠 Siri is analyzing image quality..."):
-            # STEP 1: Strict Quality Gateway (Prevents Hallucinations like 'DACAPOXEN')
+            # STEP 1: Strict Quality Gateway (Locked Prompt)
             gate_prompt = """
             ACT AS A CRITICAL AND STINGY MEDICINE SAFETY SCANNER. 
             Analyze the image for the medicine name.
@@ -91,21 +84,17 @@ else:
                 res = requests.post(NIM_URL, json=gate_payload).json()
                 data = json.loads(res['choices'][0]['message']['content'])
                 
-                # Check Quality Gateway Results
-                if data.get('quality') in ["INCOMPLETE", "BLURR"]:
-                    error_msg = data.get('siri_message', "I cannot read the label clearly.")
+                if data.get('quality') == "INCOMPLETE":
+                    error_msg = data.get('siri_message', "The name is unclear.")
                     st.error(f"❌ {error_msg}")
-                    text_to_speech_mobile(error_msg)
+                    text_to_speech_api(error_msg)
                 elif data.get('quality') == "GOOD":
                     med_name = data.get('medicine_name')
                     st.success(f"✅ Identified: {med_name}")
 
-                    # STEP 2: Oracle Vector Search with STRICT THRESHOLD
+                    # STEP 2: Oracle Vector Search (Locked Logic)
                     conn = oracledb.connect(user=DB_CONFIG["user"], password=DB_CONFIG["password"], dsn=DB_CONFIG["dsn"])
                     with conn.cursor() as cursor:
-                        st.info(f"🔎 Checking registry for {med_name}...")
-                        
-                        # Distance closer to 0 is a better match
                         sql = """
                             SELECT LEAF_TEXT, 
                             VECTOR_DISTANCE(LEAF_VECTOR, VECTOR_EMBEDDING(MED_EMBED_MODEL USING :name AS DATA), COSINE) as dist 
@@ -115,11 +104,10 @@ else:
                         cursor.execute(sql, name=med_name)
                         row = cursor.fetchone()
                         
-                        # Only proceed if the match is mathematically strong (dist < 0.6)
                         if row and row[1] < 0.6:
                             leaflet_text = row[0].read() if hasattr(row[0], 'read') else row[0]
                             
-                            # STEP 3: Strict 3-Sentence Output from DB ONLY
+                            # STEP 3: Strict 3-Sentence Output (Locked Prompt)
                             summary_prompt = f"""
                             ACT AS A PHARMACIST. Based ONLY on this medical text: {leaflet_text[:2000]}
                             Provide info for {med_name} in exactly three sentences.
@@ -135,15 +123,11 @@ else:
                             
                             siri_output = sum_res['choices'][0]['message']['content'].strip()
                             st.info(f"📣 {siri_output}")
-                            text_to_speech_mobile(siri_output)
+                            text_to_speech_api(siri_output)
                         else:
-                            # REFUSAL: If not in DB, Siri must state it is not registered
                             not_found_msg = f"Medicine {med_name} is recognized, but it is not in our clinical registry."
                             st.warning(not_found_msg)
-                            text_to_speech_mobile(not_found_msg)
+                            text_to_speech_api(not_found_msg)
                     conn.close()
             except Exception as e:
                 st.error(f"System Error: {e}")
-
-
-
