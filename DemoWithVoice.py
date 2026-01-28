@@ -58,10 +58,10 @@ else:
 
         with st.spinner("🧠 Siri is analyzing image quality..."):
             # STEP 1: Strict Quality Gateway (Locked Prompt)
-            gate_prompt = gate_prompt = """
-            ACT AS A MEDICINE SAFETY SCANNER OPTIMIZED FOR MOBILE.
+            gate_prompt = """
+            ACT AS A CRITICAL AND STINGY MEDICINE SAFETY SCANNER OPTIMIZED FOR MOBILES. 
             Analyze the image for the medicine name.
-            CRITICAL RULES FOR MOBILE:
+            CRITICAL RULES:
             1. If the text is tilted, blurry, or partially hidden, set quality='INCOMPLETE'.
             2. If you are not 100% sure of every single letter in the name, set quality='INCOMPLETE'.
             3. If quality is 'INCOMPLETE', set siri_message='The name is cut off or unclear. Please take another picture so I can be sure'.
@@ -131,6 +131,7 @@ else:
                     conn.close()
             except Exception as e:
                 st.error(f"System Error: {e}")
+
 
 
 
