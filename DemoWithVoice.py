@@ -7,7 +7,7 @@ import oracledb
 # --- DATABASE CONFIG ---
 # Ensure these match your actual Oracle Cloud details
 NIM_URL = "http://161.33.44.233/v1/chat/completions"
-DSN_STRING = """(description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1522)(host=adb.eu-frankfurt-1.oraclecloud.com))(connect_data=(service_name=gf98d0d123772ee_hackathonaidb_high.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))"""
+DSN_STRING = """(description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1521)(host=adb.eu-frankfurt-1.oraclecloud.com))(connect_data=(service_name=gf98d0d123772ee_hackathonaidb_high.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))"""
 
 DB_CONFIG = {
     "user": "ADMIN",
@@ -121,4 +121,5 @@ else:
                         text_to_speech_mobile(msg)
 
             except Exception as e:
+
                 st.error(f"System Error: {e}")
