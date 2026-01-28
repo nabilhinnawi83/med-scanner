@@ -19,6 +19,7 @@ st.set_page_config(page_title="Siri Med Scanner", page_icon="💊", layout="cent
 # --- MOBILE VOICE ENGINE ---
 def text_to_speech_mobile(text):
     if text:
+        # Clean text for JavaScript safety
         clean_text = text.replace("'", "").replace("\n", " ").replace("*", "").replace('"', '')
         components_code = f"""
             <script>
@@ -53,15 +54,15 @@ else:
         img_b64 = base64.b64encode(img_bytes).decode("utf-8")
 
         with st.spinner("🧠 Siri is analyzing image quality..."):
-            # STEP 1: Strict Quality Gateway (The Fix for Hallucinations)
+            # STEP 1: Strict Quality Gateway (Prevents Hallucinations like 'DACAPOXEN')
             gate_prompt = """
-            ACT AS A CRITICAL AND STINGY MEDICINE SAFETY SCANNER. 
+            ACT AS A STRICT MEDICINE SAFETY SCANNER. 
             Analyze the image for the medicine name.
-            CRITICAL RULES:
-            1. If the text is tilted, blurry, or partially hidden, set quality='INCOMPLETE'.
-            2. If you are not 100% sure of every single letter in the name, set quality='INCOMPLETE'.
-            3. If quality is 'INCOMPLETE', set siri_message='The name is cut off or unclear. Please show me the full label clearly so I can be sure'.
-            Return ONLY JSON: {"quality": "GOOD/INCOMPLETE", "medicine_name": "Name", "siri_message": "..."}
+            1. If name is cut off, set quality='INCOMPLETE'.
+            2. If quality is 'INCOMPLETE', set siri_message='The name is cut off. Please show me the full label so I can be sure'.
+            3. If name is blurry, set quality='BLURR'
+            4. If quality is 'BLURR', set siri_message='The image is blurry. Please take another pic so I can be sure'.
+            Return ONLY JSON: {"quality": "GOOD/INCOMPLETE/BLURR", "medicine_name": "Name", "siri_message": "..."}
             """
             
             gate_payload = {
@@ -87,23 +88,32 @@ else:
                     text_to_speech_mobile(error_msg)
                 elif data.get('quality') == "GOOD":
                     med_name = data.get('medicine_name')
-                    st.success(f"✅ Verified: {med_name}")
+                    st.success(f"✅ Identified: {med_name}")
 
-                    # STEP 2: Oracle Vector Search
+                    # STEP 2: Oracle Vector Search with STRICT THRESHOLD
                     conn = oracledb.connect(user=DB_CONFIG["user"], password=DB_CONFIG["password"], dsn=DB_CONFIG["dsn"])
                     with conn.cursor() as cursor:
-                        sql = "SELECT LEAF_TEXT FROM MEDICINE_LEAFLETS ORDER BY VECTOR_DISTANCE(LEAF_VECTOR, VECTOR_EMBEDDING(MED_EMBED_MODEL USING :name AS DATA), COSINE) FETCH FIRST 1 ROWS ONLY"
+                        st.info(f"🔎 Checking registry for {med_name}...")
+                        
+                        # Distance closer to 0 is a better match
+                        sql = """
+                            SELECT LEAF_TEXT, 
+                            VECTOR_DISTANCE(LEAF_VECTOR, VECTOR_EMBEDDING(MED_EMBED_MODEL USING :name AS DATA), COSINE) as dist 
+                            FROM MEDICINE_LEAFLETS 
+                            ORDER BY dist FETCH FIRST 1 ROWS ONLY
+                        """
                         cursor.execute(sql, name=med_name)
                         row = cursor.fetchone()
                         
-                        if row:
+                        # Only proceed if the match is mathematically strong (dist < 0.6)
+                        if row and row[1] < 0.6:
                             leaflet_text = row[0].read() if hasattr(row[0], 'read') else row[0]
                             
-                            # STEP 3: Strict 3-Sentence Output
+                            # STEP 3: Strict 3-Sentence Output from DB ONLY
                             summary_prompt = f"""
-                            Based on this text: {leaflet_text[:2000]}
-                            Provide information for {med_name} in exactly three short sentences.
-                            Use this exact format:
+                            ACT AS A PHARMACIST. Based ONLY on this medical text: {leaflet_text[:2000]}
+                            Provide info for {med_name} in exactly three sentences.
+                            Use this format:
                             Medicine is [Name]. Usage is [Short usage]. Dose is [Short dose].
                             No other text.
                             """
@@ -117,8 +127,10 @@ else:
                             st.info(f"📣 {siri_output}")
                             text_to_speech_mobile(siri_output)
                         else:
-                            st.warning("Medicine not found in the registry.")
+                            # REFUSAL: If not in DB, Siri must state it is not registered
+                            not_found_msg = f"Medicine {med_name} is recognized, but it is not in our clinical registry."
+                            st.warning(not_found_msg)
+                            text_to_speech_mobile(not_found_msg)
                     conn.close()
             except Exception as e:
                 st.error(f"System Error: {e}")
-
