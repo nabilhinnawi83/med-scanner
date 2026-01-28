@@ -57,8 +57,10 @@ else:
             gate_prompt = """
             ACT AS A STRICT MEDICINE SAFETY SCANNER. 
             Analyze the image for the medicine name.
-            1. If name is cut off or hidden, set quality='INCOMPLETE'.
+            1. If name is cut off, set quality='INCOMPLETE'.
             2. If quality is 'INCOMPLETE', set siri_message='The name is cut off. Please show me the full label so I can be sure'.
+            3. If name is blurry, set quality='BLURR'
+            4. If quality is 'BLURR', set siri_message='The image is blurry. Please take another pic so I can be sure'.
             Return ONLY JSON: {"quality": "GOOD/INCOMPLETE", "medicine_name": "Name", "siri_message": "..."}
             """
             
@@ -119,3 +121,4 @@ else:
                     conn.close()
             except Exception as e:
                 st.error(f"Error: {e}")
+
