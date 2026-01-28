@@ -59,14 +59,12 @@ else:
         with st.spinner("🧠 Siri is analyzing image quality..."):
             # STEP 1: Strict Quality Gateway (Locked Prompt)
             gate_prompt = gate_prompt = """
-            ACT AS A MEDICINE SAFETY SCANNER OPTIMIZED FOR MOBILE. 
+            ACT AS A MEDICINE SAFETY SCANNER OPTIMIZED FOR MOBILE.
             Analyze the image for the medicine name.
-            ADAPTATION RULES FOR MOBILE:
-            1. If the medicine name is clearly legible, even if the box is vertical or at a slight angle, set quality='GOOD'.
-            2. set quality='INCOMPLETE' if the name is actually cut off, severely blurry, or obscured by fingers/glare.
-            3. If you are not 100% sure of every single letter in the name, set quality='INCOMPLETE'.
-            4. Ignore background clutter (like a room or hands) as long as the label text is readable.
-            5. If quality is 'INCOMPLETE', set siri_message='I can't see the full name. Please center the label and try again'.
+            CRITICAL RULES:
+            1. If the text is tilted, blurry, or partially hidden, set quality='INCOMPLETE'.
+            2. If you are not 100% sure of every single letter in the name, set quality='INCOMPLETE'.
+            3. If quality is 'INCOMPLETE', set siri_message='The name is cut off or unclear. Please take another picture so I can be sure'.
             Return ONLY JSON: {"quality": "GOOD/INCOMPLETE", "medicine_name": "Name", "siri_message": "..."}
             """
             
@@ -133,5 +131,6 @@ else:
                     conn.close()
             except Exception as e:
                 st.error(f"System Error: {e}")
+
 
 
