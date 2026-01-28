@@ -58,15 +58,18 @@ else:
 
         with st.spinner("🧠 Siri is analyzing image quality..."):
             # STEP 1: Strict Quality Gateway (Locked Prompt)
+            
             gate_prompt = """
-            ACT AS A CRITICAL AND STINGY MEDICINE SAFETY SCANNER OPTIMIZED FOR MOBILES. 
+            ACT AS A MEDICINE SAFETY SCANNER OPTIMIZED FOR MOBILE. 
             Analyze the image for the medicine name.
-            CRITICAL RULES:
-            1. If the text is tilted, blurry, or partially hidden, set quality='INCOMPLETE'.
-            2. If you are not 100% sure of every single letter in the name, set quality='INCOMPLETE'.
-            3. If quality is 'INCOMPLETE', set siri_message='The name is cut off or unclear. Please take another picture so I can be sure'.
+            ADAPTATION RULES FOR MOBILE:
+            1. If the medicine name is clearly legible and you are 100% sure of the medicine name, even if the box is vertical or at a slight angle, set quality='GOOD'.
+            2. Only set quality='INCOMPLETE' if the name is actually cut off, severely blurry, or obscured by fingers/glare.
+            3. Ignore background clutter (like a room or hands) as long as the label text is readable.
+            4. If quality is 'INCOMPLETE', set siri_message='I can't see the full name. Please center the label and try again'.
             Return ONLY JSON: {"quality": "GOOD/INCOMPLETE", "medicine_name": "Name", "siri_message": "..."}
             """
+            
             
             gate_payload = {
                 "model": "nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
@@ -131,6 +134,7 @@ else:
                     conn.close()
             except Exception as e:
                 st.error(f"System Error: {e}")
+
 
 
 
