@@ -16,7 +16,7 @@ DB_CONFIG = {
     "dsn": DSN_STRING
 }
 
-st.set_page_config(page_title="Siri Med Scanner", page_icon="💊", layout="centered")
+st.set_page_config(page_title="Pharma Vision", page_icon="💊", layout="centered")
 
 # --- API-BASED VOICE ENGINE ---
 def text_to_speech_api(text):
@@ -37,7 +37,7 @@ def text_to_speech_api(text):
         st.markdown(audio_html, unsafe_allow_html=True)
 
 # --- UI ---
-st.title("📱 Siri Medicine Scanner")
+st.title("📱 Pharma Vision")
 
 # Start Siri session
 if "siri_unlocked" not in st.session_state:
@@ -134,6 +134,7 @@ else:
                     conn.close()
             except Exception as e:
                 st.error(f"System Error: {e}")
+
 
 
 
